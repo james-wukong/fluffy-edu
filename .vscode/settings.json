@@ -32,7 +32,10 @@
   },
   "python.testing.pytestEnabled": true,
   "python.testing.unittestEnabled": false,
-  "python.testing.pytestArgs": ["tests", "-q"],
+  "python.testing.pytestArgs": [
+    "tests",
+    "-q"
+  ],
   "python.envFile": "${workspaceFolder}/.env",
   // Ensure VS Code doesn't index your large data/container folders
   "files.exclude": {
@@ -49,5 +52,17 @@
     "**/.ruff_cache": true
   },
   "git.autofetch": true,
-  "git.confirmSync": false
+  "git.confirmSync": false,
+  "python-envs.pythonProjects": [
+    {
+      "path": "api",
+      "envManager": "ms-python.python:venv",
+      "packageManager": "ms-python.python:pip"
+    },
+    {
+      "path": ".venv",
+      "envManager": "ms-python.python:venv",
+      "packageManager": "ms-python.python:pip"
+    }
+  ]
 }
