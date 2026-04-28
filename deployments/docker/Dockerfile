@@ -1,5 +1,5 @@
 # --- Stage 1: Build Stage ---
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 # Install uv (Rust-based manager)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
@@ -35,7 +35,7 @@ COPY pyproject.toml ./
 RUN uv sync --no-dev --no-install-project
 
 # --- Stage 2: Runtime Stage ---
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # 1. Grab the uv binary from the official image again
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
