@@ -1,0 +1,27 @@
+services:
+  # Your Python AI App
+  app:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile
+    container_name: edu-llm-container
+    depends_on:
+      - qdrant
+    networks:
+      - lo-network
+    ports:
+      - "8000:8000"
+
+  # The new Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant_container
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    networks:
+      - lo-network
+
+networks:
+  lo-network:
+    external: true

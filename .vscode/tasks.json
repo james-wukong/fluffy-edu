@@ -1,0 +1,30 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "uv sync",
+      "type": "shell",
+      "command": "uv sync"
+    },
+    {
+      "label": "uv add notebook tools",
+      "type": "shell",
+      "command": "uv add jupyter ipykernel"
+    },
+    {
+      "label": "format",
+      "type": "shell",
+      "command": "uv run black . && uv run ruff check . --fix"
+    },
+    {
+      "label": "test",
+      "type": "shell",
+      "command": "uv run pytest -q"
+    },
+    {
+      "label": "train",
+      "type": "shell",
+      "command": "uv run python -m src.train"
+    }
+  ]
+}

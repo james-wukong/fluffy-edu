@@ -1,0 +1,20 @@
+{
+  "recommendations": [
+    // --- CORE PYTHON SUPPORT ---
+    "ms-python.python", // Basic Python support (IntelliSense, etc.)
+    "ms-python.vscode-pylance", // High-performance language server
+    "ms-python.debugpy", // The industry-standard debugger
+    "ms-python.python-environments", // Improved venv/uv management
+    // --- QUALITY & LINTING (The 2026 Rust Stack) ---
+    "charliermarsh.ruff", // Fast linter and formatter (replaces Black/Flake8)
+    "tamasfe.even-better-toml", // Essential for pyproject.toml and uv.lock
+    "redhat.vscode-yaml",
+    // --- DATABASE & DATA ---
+    "ckotzbauer.qdrant-explorer", // To visualize your vectors directly in VS Code
+    "mtxr.sqltools", // For querying your Postgres DB without leaving the editor
+    "mtxr.sqltools-driver-pg", // Postgres driver for SQLTools
+    // --- DOCKER & INFRASTRUCTURE ---
+    "ms-azuretools.vscode-docker", // Manage your docker-compose and containers
+    "irongeek.vscode-env" // Syntax highlighting for your .env files
+  ]
+}

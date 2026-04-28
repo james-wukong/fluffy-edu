@@ -1,3 +1,18 @@
+<<<<<<< HEAD
+=======
+# IDE and Editor files
+.idea/ # IntelliJ IDEA / GoLand project files
+.DS_Store # macOS system files
+*.swp # Vim swap files
+*~ # Backup files
+
+# Environment variables files
+.env.* # Specific environment files (e.g., .env.development)
+
+# cache files
+.ruff_cache
+
+>>>>>>> a74f084 (init)
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -215,4 +230,8 @@ marimo/_lsp/
 __marimo__/
 
 # Streamlit
+<<<<<<< HEAD
 .streamlit/secrets.toml
+=======
+.streamlit/secrets.toml
+>>>>>>> a74f084 (init)
