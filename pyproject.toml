@@ -3,7 +3,7 @@ name = "edu-llm-app"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "better-profanity>=0.7.0",
     "numpy>=2.4.4",
@@ -11,5 +11,7 @@ dependencies = [
     "pillow>=12.2.0",
     "pymupdf>=1.27.2.3",
     "pytesseract>=0.3.13",
+    "python-magic>=0.4.27",
     "scikit-learn>=1.8.0",
+    "structlog>=25.5.0",
 ]

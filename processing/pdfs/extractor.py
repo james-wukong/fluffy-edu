@@ -1,77 +1,111 @@
 import io
+from enum import Enum, auto
+from typing import cast
 
-import fitz  # PyMuPDF
+import magic
 import pdfplumber  # pip install pdfplumber
+import pymupdf  # PyMuPDF
 import pytesseract  # pip install pytesseract
 from PIL import Image
 
 
+class PDFType(Enum):
+    EMPTY = auto()
+    SCANNED = auto()
+    DIGITAL = auto()
+
+
+type Block = tuple[float, float, float, float, str, int, int]
+type PageText = list[tuple[int, str]]
+
+
 class PDFExtractor:
-    def detect_pdf_type(self, pdf_path: str) -> str:
-        doc = fitz.open(pdf_path)
-        page = doc[0]
-        text = page.get_text().strip()
-
-        if len(text) > 100:
-            return "digital"  # Normal PDF with selectable text
-
-        # Check if it has images (likely scanned)
-        images = page.get_images()
-        if images:
-            return "scanned"  # Image-based, needs OCR
-
-        return "empty"  # Corrupted or blank
-
     # Route to correct extractor
-    def extract_pdf(self, pdf_path: str) -> str:
-        pdf_type = detect_pdf_type(pdf_path)
+    def extract_pdf(self, pdf_path: str) -> PageText:
+        pdf_type = self._detect_pdf_type(pdf_path)
         print(f"  → Detected type: {pdf_type}")
 
-        if pdf_type == "digital":
-            return extract_digital_pdf(pdf_path)
-        elif pdf_type == "scanned":
-            return extract_scanned_pdf(pdf_path)
+        if pdf_type == PDFType.DIGITAL:
+            return self._extract_digital_pdf(pdf_path)
+        elif pdf_type == PDFType.SCANNED:
+            return self._extract_scanned_pdf(pdf_path)
         else:
             print(f"  ⚠️ Skipping empty PDF: {pdf_path}")
-            return ""
+            return []
 
-    def extract_digital_pdf(self, pdf_path: str) -> str:
-        doc = fitz.open(pdf_path)
-        pages_text = []
+    def _detect_pdf_type(self, pdf_path: str) -> str:
+        if not self._is_pdf(pdf_path):
+            raise TypeError("wrong file type uploaded!")
+        try:
+            with pymupdf.open(pdf_path) as doc:
+                if doc.page_count == 0:
+                    return PDFType.EMPTY.name
 
-        for page_num, page in enumerate(doc):
-            # Extract with layout preservation
-            blocks = page.get_text("blocks")  # Returns list of text blocks
+                text = cast(str, doc[0].get_text())
+                if len(text.strip()) > 100:
+                    return PDFType.DIGITAL.name  # Normal PDF with selectable text
+                else:
+                    images = doc[0].get_images()
+                    if images:
+                        return PDFType.SCANNED.name
+                return PDFType.EMPTY.name
+        except Exception as exc:
+            raise RuntimeError(f"Failed to read PDF: {pdf_path}") from exc
 
-            # Sort blocks top-to-bottom, left-to-right
-            blocks.sort(key=lambda b: (round(b[1] / 20), b[0]))  # b[1]=y, b[0]=x
+    def _extract_digital_pdf(self, pdf_path: str) -> PageText:
+        try:
+            with pymupdf.open(pdf_path) as doc:
+                if doc.page_count == 0:
+                    return []
 
-            page_text = "\n".join(b[4].strip() for b in blocks if b[4].strip())
-            pages_text.append((page_num + 1, page_text))
+                pages_text: PageText = []
 
-        return pages_text  # [(page_num, text), ...]
+                for page_index in range(doc.page_count):
+                    page = doc[page_index]
+                    # Extract with layout preservation
+                    raw = page.get_text("blocks")
+                    if not isinstance(raw, list):
+                        raise TypeError("Expected list from get_text('blocks')")
+                    blocks = cast(list[Block], raw)
+                    # order blocks by b[1] -> x[1] -> rows and b[0] -> y[0] -> cols
+                    blocks.sort(key=lambda b: (b[1], b[0]))
 
-    def extract_scanned_pdf(self, pdf_path: str) -> list:
-        doc = fitz.open(pdf_path)
-        pages_text = []
+                    page_text = "\n".join(
+                        block[4].strip() for block in blocks if block[4].strip()
+                    )
 
-        for page_num, page in enumerate(doc):
-            # Render page as high-res image
-            mat = fitz.Matrix(2.0, 2.0)  # 2x zoom for better OCR
-            pix = page.get_pixmap(matrix=mat)
-            img = Image.open(io.BytesIO(pix.tobytes("png")))
+                    pages_text.append((page_index + 1, page_text))
+                return pages_text  # [(page_num, text), ...]
+        except Exception as exc:
+            raise RuntimeError(f"Failed digital PDF extraction: {pdf_path}") from exc
 
-            # Run OCR
-            text = pytesseract.image_to_string(
-                img,
-                config="--osd 0 --psm 3",  # Auto page segmentation
-            )
-            pages_text.append((page_num + 1, text))
-            print(f"  OCR page {page_num + 1}/{len(doc)}")
+    def _extract_scanned_pdf(self, pdf_path: str) -> PageText:
+        try:
+            with pymupdf.open(pdf_path) as doc:
+                if doc.page_count == 0:
+                    return []
+                pages_text: PageText = []
 
-        return pages_text
+                for page_index in range(doc.page_count):
+                    page = doc[page_index]
+                    # Render page as high-res image
+                    matrix = pymupdf.Matrix(2.0, 2.0)  # 2x zoom for better OCR
+                    pix = page.get_pixmap(matrix=matrix, alpha=False)
+                    image = Image.open(io.BytesIO(pix.tobytes("png")))
 
-    def extract_tables_from_pdf(self, pdf_path: str) -> list[dict]:
+                    # Run OCR
+                    text = pytesseract.image_to_string(
+                        image,
+                        config="--oem 3 --psm 3",
+                    ).strip()
+                    pages_text.append((page_index + 1, text))
+
+                    print(f"  OCR page {page_index + 1}/{doc.page_count}")
+                return pages_text
+        except Exception as exc:
+            raise RuntimeError(f"Failed OCR PDF extraction: {pdf_path}") from exc
+
+    def _extract_tables_from_pdf(self, pdf_path: str) -> list[dict]:
         tables_data = []
 
         with pdfplumber.open(pdf_path) as pdf:
@@ -121,3 +155,10 @@ class PDFExtractor:
                     )
 
         return tables_data
+
+    def _is_pdf(self, file_path: str) -> bool:
+        # This reads the first few bytes of the file to determine the type
+        mime = magic.Magic(mime=True)
+        file_type = mime.from_file(file_path)
+
+        return True if file_type == "application/pdf" else False
