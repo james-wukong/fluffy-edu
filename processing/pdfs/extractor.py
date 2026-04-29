@@ -1,6 +1,7 @@
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from enum import Enum, auto
+from pathlib import Path
 from typing import Any, TypedDict, cast
 
 import magic
@@ -168,9 +169,17 @@ class PDFDigitalExtractor:
         with pymupdf.open(pdf_path) as doc:
             for page_index in range(doc.page_count):
                 page_result = self.extract_page(doc[page_index], page_index + 1)
-
+                path_obj = Path(pdf_path)
+                file_meta = {
+                    "folder_path": path_obj.parent,
+                    "filename": path_obj.name,
+                    "total_pages": doc.page_count,
+                    "language": "chinese",
+                }
                 if isinstance(doc.metadata, dict):
-                    page_result["metadata"] = page_result["metadata"] | doc.metadata
+                    page_result["metadata"] = (
+                        page_result["metadata"] | doc.metadata | file_meta
+                    )
                 results.append(page_result)
 
         return results
@@ -298,8 +307,15 @@ class FastPDFOCRExtractor:
                 "page": page_index + 1,
                 "page_type": PDFType.SCANNED.name,
             }
+            path_obj = Path(pdf_path)
+            file_meta = {
+                "folder_path": path_obj.parent,
+                "filename": path_obj.name,
+                "total_pages": doc.page_count,
+                "language": "chinese",
+            }
             if isinstance(doc.metadata, dict):
-                metadata = metadata | doc.metadata
+                metadata = metadata | doc.metadata | file_meta
             return {
                 "text": text,
                 "metadata": metadata,
@@ -329,9 +345,9 @@ class FastPDFOCRExtractor:
 #     batch_size=4,
 # )
 # ocr.extract()
-# ext = PDFExtractor()
-# result = ext.extract_pdf(
-#     "data/raw/pdfs/hr/epa_sample_letter_sent_to_commissioners_dated_february_29_2015.pdf"
-# )
+ext = PDFExtractor()
+result = ext.extract_pdf(
+    "data/raw/pdfs/hr/epa_sample_letter_sent_to_commissioners_dated_february_29_2015.pdf"
+)
 
-# print(result[2])
+print(result[2])

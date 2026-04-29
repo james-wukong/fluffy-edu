@@ -4,22 +4,22 @@ import unicodedata
 
 class PDFTextCleaner:
     def clean(self, text: str) -> str:
-        text = self.fix_encoding(text)
-        text = self.remove_headers_footers(text)
-        text = self.fix_hyphenation(text)
-        text = self.normalize_whitespace(text)
-        text = self.remove_boilerplate(text)
-        text = self.fix_special_chars(text)
+        text = self._fix_encoding(text)
+        text = self._remove_headers_footers(text)
+        text = self._fix_hyphenation(text)
+        text = self._normalize_whitespace(text)
+        text = self._remove_boilerplate(text)
+        text = self._fix_special_chars(text)
         return text.strip()
 
-    def fix_encoding(self, text: str) -> str:
+    def _fix_encoding(self, text: str) -> str:
         # Normalize unicode (fix mojibake)
         text = unicodedata.normalize("NFKD", text)
         # Remove non-printable control chars except newlines
         text = "".join(c for c in text if unicodedata.category(c) != "Cc" or c == "\n")
         return text
 
-    def remove_headers_footers(self, text: str) -> str:
+    def _remove_headers_footers(self, text: str) -> str:
         lines = text.split("\n")
         cleaned = []
         for line in lines:
@@ -34,11 +34,11 @@ class PDFTextCleaner:
             cleaned.append(line)
         return "\n".join(cleaned)
 
-    def fix_hyphenation(self, text: str) -> str:
+    def _fix_hyphenation(self, text: str) -> str:
         # Fix words broken across lines: "impor-\ntant" → "important"
         return re.sub(r"(\w)-\n(\w)", r"\1\2", text)
 
-    def normalize_whitespace(self, text: str) -> str:
+    def _normalize_whitespace(self, text: str) -> str:
         # Collapse multiple spaces
         text = re.sub(r" {2,}", " ", text)
         # Max 2 consecutive newlines
@@ -47,7 +47,7 @@ class PDFTextCleaner:
         text = "\n".join(line.rstrip() for line in text.split("\n"))
         return text
 
-    def remove_boilerplate(self, text: str) -> str:
+    def _remove_boilerplate(self, text: str) -> str:
         # Remove common boilerplate patterns
         patterns = [
             r"confidential.*?do not distribute",
@@ -60,7 +60,7 @@ class PDFTextCleaner:
             text = re.sub(pattern, "", text, flags=re.IGNORECASE)
         return text
 
-    def fix_special_chars(self, text: str) -> str:
+    def _fix_special_chars(self, text: str) -> str:
         replacements = {
             "\u2019": "'",  # Smart apostrophe
             "\u201c": '"',  # Smart quote open
