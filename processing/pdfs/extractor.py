@@ -329,9 +329,9 @@ class FastPDFOCRExtractor:
 #     batch_size=4,
 # )
 # ocr.extract()
-ext = PDFExtractor()
-result = ext.extract_pdf(
-    "data/raw/pdfs/hr/epa_sample_letter_sent_to_commissioners_dated_february_29_2015.pdf"
-)
+# ext = PDFExtractor()
+# result = ext.extract_pdf(
+#     "data/raw/pdfs/hr/epa_sample_letter_sent_to_commissioners_dated_february_29_2015.pdf"
+# )
 
-print(result[2])
+# print(result[2])
