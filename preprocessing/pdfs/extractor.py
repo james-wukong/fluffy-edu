@@ -11,6 +11,8 @@ import pytesseract
 from PIL import Image, ImageOps
 
 from preprocessing.schema import (
+    ChunkMetadata,
+    DocMetadata,
     ExtractHelper,
     FileMetadata,
     MetaData,
@@ -150,7 +152,10 @@ class PDFDigitalExtractor:
             return {
                 "text": "",
                 "metadata": {
+                    "file_meta": cast(FileMetadata, {}),
                     "page_meta": page_meta,
+                    "chunk_meta": cast(ChunkMetadata, {}),
+                    "doc_meta": DocMetadata(),
                 },
             }
 
@@ -168,7 +173,12 @@ class PDFDigitalExtractor:
         }
         return {
             "text": text + "\n" + tab_text,
-            "metadata": {"page_meta": page_meta},
+            "metadata": {
+                "file_meta": cast(FileMetadata, {}),
+                "page_meta": page_meta,
+                "chunk_meta": cast(ChunkMetadata, {}),
+                "doc_meta": DocMetadata(),
+            },
         }
 
     def _extract_text(self, blocks: list) -> str:
@@ -264,7 +274,7 @@ class FastPDFOCRExtractor:
             image = ImageOps.grayscale(image)
 
             text = pytesseract.image_to_string(image, lang=lang, config=config).strip()
-            metadata: MetaData = {}
+            metadata: MetaData = cast(MetaData, {})
             metadata["page_meta"] = {
                 "page": page_index + 1,
                 "page_type": PDFType.SCANNED.name,

@@ -37,7 +37,7 @@ class ChunkMetadata(TypedDict):
     word_count: int
 
 
-class MetaData(TypedDict, total=False):
+class MetaData(TypedDict):
     file_meta: FileMetadata
     page_meta: PageMetadata
     doc_meta: DocMetadata

@@ -34,11 +34,15 @@ class DocumentPipeline:
         # 2. Chunk + validate each page
         all_chunks: list[ChunkResult] = []
         for page in pages:
-            page["text"] = self.pdf_cleaner.clean(page["text"])
+            language = (
+                "en"
+                if page["metadata"]["doc_meta"].get("language") == "english"
+                else "zh"
+            )
+            page["text"] = self.pdf_cleaner.clean(page["text"], language=language)
             chunks = self.chunker.chunk(page)
             valid = [c for c in chunks if self.chunker.validate_chunk(c)[0]]
-            # if Path(file_path).name == "james_cheng_resume_php.docx":
-            #     print(f"  → valid chunk: {valid}")
+
             all_chunks.extend(valid)
 
         return all_chunks
