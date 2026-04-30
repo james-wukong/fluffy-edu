@@ -2,14 +2,21 @@ import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, TypedDict, cast
+from typing import cast
 
 import magic
-import pdfplumber
 import polars as pl
 import pymupdf
 import pytesseract
 from PIL import Image, ImageOps
+
+from preprocessing.schema import (
+    ExtractHelper,
+    FileMetadata,
+    MetaData,
+    PageMetadata,
+    PageResult,
+)
 
 
 class PDFType(Enum):
@@ -19,23 +26,17 @@ class PDFType(Enum):
     MIXED = auto()
 
 
-class PageResult(TypedDict):
-    text: str
-    metadata: dict[str, Any]
-
-
 type Block = tuple[float, float, float, float, str, int, int]
-type PageText = tuple[int, str]
 
 
 class PDFExtractor:
     # Route to correct extractor
-    def extract_pdf(self, pdf_path: str) -> list[PageResult]:
-        if not self._is_pdf(pdf_path):
+    def extract_file(self, file_path: str) -> list[PageResult]:
+        if not self._is_pdf(file_path):
             raise TypeError("wrong file type uploaded!")
-        is_scanned = self._is_scanned_pdf(pdf_path)
+        is_scanned = self._is_scanned_pdf(file_path)
         try:
-            with pymupdf.open(pdf_path) as doc:
+            with pymupdf.open(file_path) as doc:
                 if doc.page_count == 0:
                     return []
 
@@ -49,22 +50,22 @@ class PDFExtractor:
                         psm=3,
                         batch_size=4,
                     )
-                    results = ocr_ext.extract_pdf(pdf_path)
+                    results = ocr_ext.extract_pdf(file_path)
                 else:
                     # TODO digital process
                     digital_ext = PDFDigitalExtractor()
-                    results = digital_ext.extract_pdf(pdf_path)
+                    results = digital_ext.extract_pdf(file_path)
 
                 return results
         except Exception as exc:
-            raise RuntimeError(f"Failed to read PDF: {pdf_path}") from exc
+            raise RuntimeError(f"Failed to read PDF: {file_path}") from exc
 
-    def _is_scanned_pdf(self, pdf_path: str) -> bool:
+    def _is_scanned_pdf(self, file_path: str) -> bool:
         """
         only detect if this pdf contains only scanned images
         """
         try:
-            with pymupdf.open(pdf_path) as doc:
+            with pymupdf.open(file_path) as doc:
                 if doc.page_count == 0:
                     return False
 
@@ -78,7 +79,7 @@ class PDFExtractor:
             # If we looped through all pages and found zero text
             return True
         except Exception as exc:
-            raise RuntimeError(f"Failed to read PDF: {pdf_path}") from exc
+            raise RuntimeError(f"Failed to read PDF: {file_path}") from exc
 
     def _detect_page_type(self, page: pymupdf.Page) -> str:
         text = cast(str, page.get_text())
@@ -101,57 +102,6 @@ class PDFExtractor:
 
         return PDFType.DIGITAL.name
 
-    def _extract_tables_from_pdf(self, pdf_path: str) -> list[dict]:
-        tables_data = []
-
-        with pdfplumber.open(pdf_path) as pdf:
-            for page_num, page in enumerate(pdf.pages):
-                tables = page.extract_tables()
-
-                for table_idx, table in enumerate(tables):
-                    if not table or len(table) < 2:
-                        continue
-
-                    # First row = headers
-                    headers = [
-                        str(h).strip() if h else f"col_{i}"
-                        for i, h in enumerate(table[0])
-                    ]
-
-                    # Convert rows to natural language sentences
-                    rows_as_text = []
-                    for row in table[1:]:
-                        if not any(cell for cell in row):
-                            continue
-                        row_text = ", ".join(
-                            f"{headers[i]}: {str(cell).strip()}"
-                            for i, cell in enumerate(row)
-                            if cell and str(cell).strip()
-                        )
-                        rows_as_text.append(row_text)
-
-                    # Format as readable text block
-                    table_text = (
-                        f"Table data with columns: "
-                        f"{', '.join(headers)}.\n" + "\n".join(rows_as_text)
-                    )
-
-                    tables_data.append(
-                        {
-                            "text": table_text,
-                            "metadata": {
-                                "source_type": "pdf_table",
-                                "page_number": page_num + 1,
-                                "table_index": table_idx,
-                                "column_count": len(headers),
-                                "row_count": len(table) - 1,
-                                "headers": headers,
-                            },
-                        }
-                    )
-
-        return tables_data
-
     def _is_pdf(self, file_path: str) -> bool:
         # This reads the first few bytes of the file to determine the type
         mime = magic.Magic(mime=True)
@@ -161,24 +111,27 @@ class PDFExtractor:
 
 
 class PDFDigitalExtractor:
-    def extract_pdf(self, pdf_path: str) -> list[PageResult]:
+    def extract_pdf(self, file_path: str) -> list[PageResult]:
         """
         extract text from digital pdf file, need to make sure this is a digital pdf file
         """
         results: list[PageResult] = []
-        with pymupdf.open(pdf_path) as doc:
+        with pymupdf.open(file_path) as doc:
             for page_index in range(doc.page_count):
                 page_result = self.extract_page(doc[page_index], page_index + 1)
-                path_obj = Path(pdf_path)
-                file_meta = {
-                    "folder_path": path_obj.parent,
+                path_obj = Path(file_path)
+
+                file_meta: FileMetadata = {
+                    "file_path": path_obj.parent,
                     "filename": path_obj.name,
                     "total_pages": doc.page_count,
-                    "language": "chinese",
+                    "file_type": "pdf",
                 }
-                if isinstance(doc.metadata, dict):
-                    page_result["metadata"] = (
-                        page_result["metadata"] | doc.metadata | file_meta
+                page_result["metadata"]["file_meta"] = file_meta
+
+                if isinstance(doc.metadata, dict) and doc.metadata:
+                    page_result["metadata"]["doc_meta"] = (
+                        ExtractHelper.map_pdf_metadata(doc.metadata)
                     )
                 results.append(page_result)
 
@@ -190,11 +143,14 @@ class PDFDigitalExtractor:
         """
         blocks = page.get_text("blocks")
         if not isinstance(blocks, list):
+            page_meta: PageMetadata = {
+                "page": page_index + 1,
+                "page_type": PDFType.DIGITAL.name,
+            }
             return {
                 "text": "",
                 "metadata": {
-                    "page": page_index + 1,
-                    "page_type": PDFType.DIGITAL.name,
+                    "page_meta": page_meta,
                 },
             }
 
@@ -206,12 +162,13 @@ class PDFDigitalExtractor:
         # 2. extract tables into markdown format
         tab_text = self._extract_tables(page)
 
+        page_meta: PageMetadata = {
+            "page": page_index + 1,
+            "page_type": PDFType.DIGITAL.name,
+        }
         return {
             "text": text + "\n" + tab_text,
-            "metadata": {
-                "page": page_index + 1,
-                "page_type": PDFType.DIGITAL.name,
-            },
+            "metadata": {"page_meta": page_meta},
         }
 
     def _extract_text(self, blocks: list) -> str:
@@ -256,9 +213,9 @@ class FastPDFOCRExtractor:
         self.batch_size = batch_size
         self.config = f"--oem 3 --psm {psm}"
 
-    def extract_pdf(self, pdf_path: str) -> list[PageResult]:
-        with pymupdf.open(pdf_path) as doc:
-            total_pages = doc.page_count
+    def extract_pdf(self, file_path: str) -> list[PageResult]:
+        with pymupdf.open(file_path) as doc:
+            total_pages: int = doc.page_count
 
         if total_pages == 0:
             return []
@@ -271,7 +228,7 @@ class FastPDFOCRExtractor:
             futures = [
                 executor.submit(
                     self._ocr_batch,
-                    pdf_path,
+                    file_path,
                     batch,
                     self.zoom,
                     self.lang,
@@ -283,39 +240,45 @@ class FastPDFOCRExtractor:
             for future in as_completed(futures):
                 results.extend(future.result())
 
-        results.sort(key=lambda item: item["metadata"]["page"])
+        results.sort(
+            key=lambda item: (
+                item["metadata"]["page_meta"]["page"]
+                if "page_meta" in item["metadata"]
+                else 0
+            )
+        )
         return results
 
     def _chunked(self, seq: list[int], size: int) -> list[list[int]]:
         return [seq[i : i + size] for i in range(0, len(seq), size)]
 
     def _ocr_page(
-        self, pdf_path: str, page_index: int, zoom: float, lang: str, config: str
+        self, file_path: str, page_index: int, zoom: float, lang: str, config: str
     ) -> PageResult:
-        with pymupdf.open(pdf_path) as doc:
+        with pymupdf.open(file_path) as doc:
             page = doc[page_index]
 
             mat = pymupdf.Matrix(zoom, zoom)
             pix = page.get_pixmap(matrix=mat, alpha=False)
-
             image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-
             image = ImageOps.grayscale(image)
 
             text = pytesseract.image_to_string(image, lang=lang, config=config).strip()
-            metadata = {
+            metadata: MetaData = {}
+            metadata["page_meta"] = {
                 "page": page_index + 1,
                 "page_type": PDFType.SCANNED.name,
             }
-            path_obj = Path(pdf_path)
-            file_meta = {
-                "folder_path": path_obj.parent,
+            path_obj = Path(file_path)
+            file_meta: FileMetadata = {
+                "file_path": path_obj.parent,
                 "filename": path_obj.name,
                 "total_pages": doc.page_count,
-                "language": "chinese",
+                "file_type": "pdf",
             }
+            metadata["file_meta"] = file_meta
             if isinstance(doc.metadata, dict):
-                metadata = metadata | doc.metadata | file_meta
+                metadata["doc_meta"] = ExtractHelper.map_pdf_metadata(doc.metadata)
             return {
                 "text": text,
                 "metadata": metadata,
@@ -323,7 +286,7 @@ class FastPDFOCRExtractor:
 
     def _ocr_batch(
         self,
-        pdf_path: str,
+        file_path: str,
         page_indexes: list[int],
         zoom: float,
         lang: str,
@@ -332,7 +295,7 @@ class FastPDFOCRExtractor:
         results: list[PageResult] = []
 
         for page_index in page_indexes:
-            results.append(self._ocr_page(pdf_path, page_index, zoom, lang, config))
+            results.append(self._ocr_page(file_path, page_index, zoom, lang, config))
 
         return results
 
@@ -345,9 +308,9 @@ class FastPDFOCRExtractor:
 #     batch_size=4,
 # )
 # ocr.extract()
-ext = PDFExtractor()
-result = ext.extract_pdf(
-    "data/raw/pdfs/hr/epa_sample_letter_sent_to_commissioners_dated_february_29_2015.pdf"
-)
+# ext = PDFExtractor()
+# result = ext.extract_pdf(
+#     "data/raw/pdfs/hr/epa_sample_letter_sent_to_commissioners_dated_february_29_2015.pdf"
+# )
 
-print(result[2])
+# print(result[2])
