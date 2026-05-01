@@ -42,6 +42,7 @@ class DocumentPipeline:
             f"{Path(__file__).resolve().parents[1]}/data/processed/master_chunks.jsonl"
         )
 
+        self.output_file.parent.mkdir(parents=True, exist_ok=True)
         for path in self.file_mapping.values():
             os.makedirs(os.path.dirname(path), exist_ok=True)
 
@@ -113,10 +114,6 @@ class DocumentPipeline:
         Merges multiple JSONL files from a directory into a single master JSONL file.
         Uses a streaming approach to remain memory-efficient.
         """
-        # 1. Ensure the output directory exists
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-
-        # 2. Get a list of all files matching the pattern
         input_files = sorted(source_dir.glob(pattern))
 
         if not input_files:
