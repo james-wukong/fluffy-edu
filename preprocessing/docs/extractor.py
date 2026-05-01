@@ -2,6 +2,7 @@
 
 import re
 from pathlib import Path
+from typing import cast
 
 import filetype
 from docx import Document
@@ -25,7 +26,7 @@ class DocxExtractor:
         path_obj = Path(file_path)
         doc = Document(file_path)
         kind = filetype.guess(file_path)
-        metadata = MetaData()
+        metadata = cast(MetaData, {})
         file_meta: FileMetadata = {
             "filename": path_obj.name,
             "file_path": path_obj.parent,
@@ -60,7 +61,7 @@ class DocxExtractor:
         This keeps context together instead of splitting randomly.
         """
         results: list[PageResult] = []
-        current_heading: str = ""
+        # current_heading: str = ""
         # current_level: int = 0
         current_text: list[str] = []
 
