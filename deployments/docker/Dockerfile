@@ -5,11 +5,12 @@ FROM python:3.12-slim AS builder
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # NEW: Install the compiler and system headers
-RUN apt-get update && apt-get install -y --no-install-recommends git \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
     g++ \
     gfortran \
+    libmagic1 \
     libopenblas-dev \
     libjpeg-dev \
     libmupdf-dev \
@@ -18,6 +19,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends git \
     liblapack-dev \
     pkg-config \
     python3-dev \
+    tesseract-ocr \
+    tesseract-ocr-chi-sim \
+    libtesseract-dev \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
